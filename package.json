@@ -1,0 +1,31 @@
+{
+  "name": "potential.com",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@alpinejs/intersect": "^3.14.9",
+    "alpinejs": "^3.14.9",
+    "next": "15.2.4",
+    "next-themes": "^0.4.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "scrollreveal": "^4.0.9",
+    "swiper": "^11.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/scrollreveal": "^0.0.11",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
+    "tailwindcss": "3.4",
+    "typescript": "^5"
+  }
+}
