@@ -1,4 +1,5 @@
 "use client";
+
 import Image from "next/image";
 import SectionTitle from "@/components/SectionTitle";
 import dynamic from "next/dynamic";
@@ -203,7 +204,7 @@ export default function OperationalAI() {
                   className="hidden xl:block w-[347px] h-[340px]"
                 />
                 <a
-                  href="<?php echo home_url('/talk-to-vera'); ?>"
+                  href="/talk-to-vera"
                   className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primaryho px-8 py-4 text-base font-semibold text-white transition-all duration-500 talktoverabtn"
                 >
                   Turn Visitors into Customers Instantly
@@ -429,7 +430,7 @@ export default function OperationalAI() {
                 Reduce Costs & Boost Productivity
               </h2>
               <p>
-                Streamline your business workflows with AI agents. Let’s build
+                Streamline your business workflows with AI agents. Let's build
                 your AI team! Talk to vera to get started.
               </p>
             </div>
@@ -441,7 +442,7 @@ export default function OperationalAI() {
                   className="hidden xl:block w-[347px] h-[340px]"
                 />
                 <a
-                  href="<?php echo home_url('/talk-to-vera'); ?>"
+                  href="/talk-to-vera"
                   className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primaryho px-8 py-4 text-base font-semibold text-white transition-all duration-500 talktoverabtn"
                 >
                   Talk to Vera

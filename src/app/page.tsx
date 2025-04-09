@@ -1,4 +1,5 @@
 "use client";
+
 import Image from "next/image";
 import { useTheme } from "next-themes";
 import SectionTitle from "@/components/SectionTitle";
@@ -132,7 +133,7 @@ export default function Home() {
               <div className="mt-10">
                 <div className="flex flex-wrap gap-5">
                   <a
-                    href="<?php echo home_url('/talk-to-vera'); ?>"
+                    href="/talk-to-vera"
                     className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primaryho px-8 py-4 text-base font-semibold text-white transition-all duration-500 talktoverabtn"
                   >
                     Talk to Vera
@@ -862,7 +863,7 @@ export default function Home() {
               </p>
 
               <a
-                href="<?php echo home_url('/talk-to-vera'); ?>"
+                href="/talk-to-vera"
                 className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primaryho px-8 py-4 text-base font-semibold text-white transition-all duration-500 talktoverabtn mt-7.5"
               >
                 Talk to Vera
@@ -931,7 +932,7 @@ export default function Home() {
                   className="hidden xl:block w-[347px] h-[340px]"
                 />
                 <a
-                  href="<?php echo home_url('/talk-to-vera'); ?>"
+                  href="/talk-to-vera"
                   className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primaryho px-8 py-4 text-base font-semibold text-white transition-all duration-500 talktoverabtn"
                 >
                   Talk to Vera
@@ -1288,7 +1289,7 @@ export default function Home() {
                   className="hidden xl:block w-[347px] h-[340px]"
                 />
                 <a
-                  href="talk-to-vera.html"
+                  href="/talk-to-vera"
                   className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primaryho px-8 py-4 text-base font-semibold text-white transition-all duration-500 talktoverabtn"
                 >
                   Talk to Vera

@@ -3,7 +3,14 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   images: {
-    domains: ["ai.potential.com"],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "ai.potential.com",
+        port: "",
+        pathname: "/**",
+      },
+    ],
   },
 };
 

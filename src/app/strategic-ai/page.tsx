@@ -1,4 +1,5 @@
 "use client";
+
 import Image from "next/image";
 import SectionTitle from "@/components/SectionTitle";
 import dynamic from "next/dynamic";

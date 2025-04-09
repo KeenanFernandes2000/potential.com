@@ -7,7 +7,6 @@ import React from "react";
 
 // Define WordPress API endpoints from blog-single.js
 const WP_SITE_URL = "https://potential.com/wp-json"; // WordPress REST API endpoint
-const WP_SITE_BASE = "https://potential.com"; // WordPress base URL
 
 // Add cache storage for posts
 const postCache = new Map();

@@ -1,4 +1,5 @@
 "use client";
+
 import Image from "next/image";
 import SectionTitle from "@/components/SectionTitle";
 import dynamic from "next/dynamic";
@@ -35,7 +36,7 @@ export default function RevenueAI() {
 
               <div className="flex justify-center mt-10">
                 <a
-                  href="<?php echo home_url('/talk-to-vera'); ?>"
+                  href="/talk-to-vera"
                   className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primaryho px-8 py-4 text-base font-semibold text-white transition-all duration-500 talktoverabtn"
                 >
                   Talk to Vera

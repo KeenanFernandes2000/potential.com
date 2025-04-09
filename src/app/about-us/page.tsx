@@ -1,4 +1,5 @@
 "use client";
+
 import Image from "next/image";
 import { useTheme } from "next-themes";
 import SectionTitle from "@/components/SectionTitle";
@@ -36,7 +37,7 @@ export default function AboutUsPage() {
               <div className="mt-10 flex justify-center lg:justify-start">
                 <div className="flex flex-wrap gap-5">
                   <a
-                    href="<?php echo home_url('/talk-to-vera'); ?>"
+                    href="/talk-to-vera"
                     className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primaryho px-8 py-4 text-base font-semibold text-white transition-all duration-500 talktoverabtn"
                   >
                     Talk to Vera
@@ -373,7 +374,7 @@ export default function AboutUsPage() {
                   className="hidden xl:block"
                 />
                 <a
-                  href="<?php echo home_url('/talk-to-vera'); ?>"
+                  href="/talk-to-vera"
                   className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primaryho px-8 py-4 text-base font-semibold text-white transition-all duration-500 talktoverabtn"
                 >
                   Talk to Vera

@@ -1,12 +1,20 @@
-"use client";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Page Not Found - 404",
+  description:
+    "The page you are looking for could not be found. Return to Potential.com homepage for AI business solutions.",
+  robots: {
+    index: false,
+    follow: true,
+  },
+};
 
 import { useTheme } from "next-themes";
 import Image from "next/image";
 import Link from "next/link";
 
 export default function NotFound() {
-  const { theme } = useTheme();
-
   return (
     <main>
       <section className="pt-45 lg:pt-50 xl:pt-55 pb-25 lg:pb-32.5 xl:pb-37.5 overflow-hidden">
