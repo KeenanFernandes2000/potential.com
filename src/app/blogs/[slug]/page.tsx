@@ -4,16 +4,16 @@ import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import React from "react";
+import { useRouter } from "next/navigation";
 
-// Define WordPress API endpoints from blog-single.js
-const WP_SITE_URL = "https://potential.com/wp-json"; // WordPress REST API endpoint
+// Define WordPress API endpoints
+const WP_SITE_URL = "https://potential.com/wp-json";
 
 // Add cache storage for posts
 const postCache = new Map();
 
 // Create a helper function for fetching with CORS handling
 const fetchWithCors = async (url: string, options: RequestInit = {}) => {
-  // Use our new WordPress proxy API endpoint
   const apiUrl = `/api/wordpress-proxy?url=${encodeURIComponent(url)}`;
 
   try {
@@ -26,6 +26,14 @@ const fetchWithCors = async (url: string, options: RequestInit = {}) => {
     console.error("Error fetching with CORS proxy:", error);
     throw error;
   }
+};
+
+// Helper function to convert title to slug
+export const titleToSlug = (title: string): string => {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 };
 
 // Define types
@@ -69,6 +77,7 @@ interface Post {
   content: { rendered: string };
   excerpt: { rendered: string; protected?: boolean };
   date: string;
+  slug: string;
   _embedded?: {
     "wp:featuredmedia"?: Media[];
     "wp:term"?: Category[][];
@@ -77,7 +86,7 @@ interface Post {
 }
 
 interface BlogPostParams {
-  id: string;
+  slug: string;
 }
 
 interface BlogPostPageProps {
@@ -92,10 +101,15 @@ interface GroupedSearchResults {
   };
 }
 
+interface CommentItemProps {
+  comment: Comment;
+  formatDate: (date: string) => string;
+}
+
 const BlogPostPage = ({ params }: BlogPostPageProps) => {
-  // Use React.use() to unwrap params as recommended by Next.js
+  const router = useRouter();
   const unwrappedParams = React.use(params as Promise<BlogPostParams>);
-  const postId = parseInt(unwrappedParams.id);
+  const slug = unwrappedParams.slug;
 
   const [post, setPost] = useState<Post | null>(null);
   const [relatedPosts, setRelatedPosts] = useState<Post[]>([]);
@@ -120,7 +134,43 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
   );
   const [isSearching, setIsSearching] = useState(false);
 
-  // Organize comments into a tree structure
+  // Add the missing fetchRelatedPosts function
+  const fetchRelatedPosts = useCallback(
+    async (categoryIds: number[], currentPostId: number) => {
+      try {
+        const response = await fetchWithCors(
+          `${WP_SITE_URL}/wp/v2/posts?_embed&categories=${categoryIds.join(
+            ","
+          )}&exclude=${currentPostId}&per_page=3`
+        );
+
+        const data = await response.json();
+        setRelatedPosts(data);
+      } catch (error) {
+        console.error("Error fetching related posts:", error);
+        setRelatedPosts([]);
+      }
+    },
+    []
+  );
+
+  // Add the missing fetchComments function
+  const fetchComments = useCallback(async (postId: number) => {
+    try {
+      const response = await fetchWithCors(
+        `${WP_SITE_URL}/wp/v2/comments?post=${postId}&order=asc&per_page=100&_embed`
+      );
+
+      const commentsData = await response.json();
+      const organizedComments = organizeComments(commentsData);
+      setComments(organizedComments);
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+      setComments([]);
+    }
+  }, []);
+
+  // Add the missing organizeComments function
   const organizeComments = useCallback((comments: Comment[]) => {
     const commentMap = new Map();
     const rootComments: Comment[] = [];
@@ -138,7 +188,7 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
       } else {
         const parent = commentMap.get(comment.parent);
         if (parent) {
-          parent.children.push(comment);
+          parent.children?.push(comment);
         }
       }
     });
@@ -146,60 +196,14 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
     return rootComments;
   }, []);
 
-  // Fetch comments function
-  const fetchComments = useCallback(
-    async (postId: number) => {
-      try {
-        const response = await fetchWithCors(
-          `${WP_SITE_URL}/wp/v2/comments?post=${postId}&order=asc&per_page=100&_embed`
-        );
-
-        const commentsData = await response.json();
-
-        if (commentsData.length === 0) {
-          setComments([]);
-          return;
-        }
-
-        const rootComments = organizeComments(commentsData);
-        setComments(rootComments);
-      } catch (error) {
-        console.error("Error fetching comments:", error);
-        setComments([]);
-      }
-    },
-    [organizeComments]
-  );
-
-  // Fetch related posts function
-  const fetchRelatedPosts = useCallback(
-    async (categoryIds: number[], currentPostId: number) => {
-      try {
-        // Fetch posts from the same categories, excluding the current post
-        const response = await fetchWithCors(
-          `${WP_SITE_URL}/wp/v2/posts?_embed&categories=${categoryIds.join(
-            ","
-          )}&exclude=${currentPostId}&per_page=3`
-        );
-
-        const data = await response.json();
-        setRelatedPosts(data);
-      } catch (error) {
-        console.error("Error fetching related posts:", error);
-        setRelatedPosts([]);
-      }
-    },
-    []
-  );
-
-  // Fetch post function
+  // Update fetchPost to use the new functions
   const fetchPost = useCallback(async () => {
     setIsLoading(true);
 
     try {
       // Check cache first
-      if (postCache.has(`post_${postId}`)) {
-        const cachedPost = postCache.get(`post_${postId}`);
+      if (postCache.has(`post_${slug}`)) {
+        const cachedPost = postCache.get(`post_${slug}`);
         setPost(cachedPost);
 
         // Fetch related posts based on the current post's categories
@@ -207,21 +211,28 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
           cachedPost._embedded?.["wp:term"]?.[0]?.map(
             (cat: Category) => cat.id
           ) || [];
-        await fetchRelatedPosts(categoryIds, postId);
-        await fetchComments(postId);
+        await fetchRelatedPosts(categoryIds, cachedPost.id);
+        await fetchComments(cachedPost.id);
         setIsLoading(false);
         return;
       }
 
-      // If not in cache, fetch from API
+      // If not in cache, fetch from API using slug
       const response = await fetchWithCors(
-        `${WP_SITE_URL}/wp/v2/posts/${postId}?_embed`
+        `${WP_SITE_URL}/wp/v2/posts?slug=${slug}&_embed`
       );
 
-      const data = await response.json();
+      const posts = await response.json();
+
+      if (!posts.length) {
+        router.push("/404"); // Redirect to 404 if post not found
+        return;
+      }
+
+      const data = posts[0]; // Get the first post since slug is unique
 
       // Store in cache
-      postCache.set(`post_${postId}`, data);
+      postCache.set(`post_${slug}`, data);
       setPost(data);
 
       // Fetch related posts
@@ -229,23 +240,25 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
         const categories = data._embedded["wp:term"][0].map(
           (category: Category) => category.id
         );
-        await fetchRelatedPosts(categories, postId);
+        await fetchRelatedPosts(categories, data.id);
       }
 
       // Fetch comments
-      await fetchComments(postId);
+      await fetchComments(data.id);
     } catch (error) {
       console.error("Error fetching post:", error);
       setPost(null);
     } finally {
       setIsLoading(false);
     }
-  }, [postId, fetchRelatedPosts, fetchComments]);
+  }, [slug, router, fetchRelatedPosts, fetchComments]);
 
+  // Add useEffect to fetch post data
   useEffect(() => {
     fetchPost();
   }, [fetchPost]);
 
+  // Format date helper function
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
@@ -253,6 +266,54 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
       month: "long",
       day: "numeric",
     });
+  };
+
+  // Recursive comment component
+  const CommentItem = ({ comment, formatDate }: CommentItemProps) => {
+    const hasReplies = comment.children && comment.children.length > 0;
+
+    return (
+      <div
+        className={`comment-item ${hasReplies ? "mb-8" : ""}`}
+        data-comment-id={comment.id}
+      >
+        <div className="flex gap-4 sm:gap-6">
+          <div className="shrink-0">
+            <img
+              src={comment.author_avatar_urls["96"] || "/newimages/user.png"}
+              alt={comment.author_name}
+              className="w-16 h-16 rounded-full"
+            />
+          </div>
+          <div className="flex-1">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <h5 className="font-medium text-black dark:text-white">
+                {comment.author_name}
+              </h5>
+              <span className="text-sm text-body-color dark:text-body-color-dark">
+                {formatDate(comment.date)}
+              </span>
+            </div>
+            <div
+              className="text-body-color dark:text-body-color-dark mb-4"
+              dangerouslySetInnerHTML={{ __html: comment.content.rendered }}
+            />
+          </div>
+        </div>
+
+        {hasReplies && (
+          <div className="mt-8 ml-8 sm:ml-16 space-y-8">
+            {comment.children?.map((reply: Comment) => (
+              <CommentItem
+                key={reply.id}
+                comment={reply}
+                formatDate={formatDate}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Add debounce function
@@ -268,7 +329,7 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
     };
   };
 
-  // Update the debounced search function
+  // Add the search functionality
   const debouncedSearch = useCallback(
     debounce(async (term: string) => {
       if (!term.trim()) {
@@ -333,7 +394,7 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
     debouncedSearch(value);
   };
 
-  // Fetch categories
+  // Add fetchCategories function
   const fetchCategories = useCallback(async () => {
     try {
       const response = await fetchWithCors(`${WP_SITE_URL}/wp/v2/categories`);
@@ -353,81 +414,10 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
     }
   }, []);
 
+  // Add useEffect for fetching categories
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
-
-  // Handle comment form changes
-  const handleCommentChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setCommentForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  // Handle comment submission
-  const handleCommentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    try {
-      const response = await fetchWithCors(`${WP_SITE_URL}/wp/v2/comments`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          post: postId,
-          author_name: commentForm.name,
-          author_email: commentForm.email,
-          content: commentForm.comment,
-          parent: parseInt(commentForm.parent),
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to post comment");
-      }
-
-      // Clear form
-      setCommentForm({
-        name: "",
-        email: "",
-        comment: "",
-        parent: "0",
-      });
-
-      // Show success message
-      setCommentStatus({
-        type: "success",
-        message:
-          "Thank you! Your comment has been submitted and is awaiting moderation.",
-      });
-
-      // Clear success message after 5 seconds
-      setTimeout(() => {
-        setCommentStatus({ type: null, message: "" });
-      }, 5000);
-
-      // Refresh comments after a short delay
-      setTimeout(() => {
-        fetchComments(postId);
-      }, 2000);
-    } catch (error) {
-      console.error("Error posting comment:", error);
-      setCommentStatus({
-        type: "error",
-        message: "Error posting comment. Please try again.",
-      });
-
-      // Clear error message after 5 seconds
-      setTimeout(() => {
-        setCommentStatus({ type: null, message: "" });
-      }, 5000);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -460,15 +450,6 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
     );
   }
 
-  const featuredImageUrl =
-    post._embedded?.["wp:featuredmedia"]?.[0]?.source_url ||
-    "/newimages/blog-01.png";
-  const featuredImageAlt =
-    post._embedded?.["wp:featuredmedia"]?.[0]?.alt_text || post.title.rendered;
-  const postCategories = post._embedded?.["wp:term"]?.[0] || [];
-  const author = post._embedded?.["author"]?.[0];
-  const authorAvatar = author?.avatar_urls["96"] || "/newimages/user.png";
-
   return (
     <main>
       {/* Hero Section */}
@@ -476,7 +457,7 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
         <div className="mx-auto max-w-c-1390 px-4 md:px-8 2xl:px-0">
           <div className="text-center">
             <div className="mb-4 flex items-center justify-center gap-2">
-              {postCategories.map((category: Category) => (
+              {post._embedded?.["wp:term"]?.[0]?.map((category: Category) => (
                 <Link
                   key={category.id}
                   href={`/blogs?category=${category.id}`}
@@ -492,13 +473,16 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
             <div className="mt-6 flex items-center justify-center">
               <div className="flex items-center">
                 <img
-                  src={authorAvatar}
-                  alt={author?.name || "Author"}
+                  src={
+                    post._embedded?.author?.[0]?.avatar_urls["96"] ||
+                    "/newimages/user.png"
+                  }
+                  alt={post._embedded?.author?.[0]?.name || "Author"}
                   className="w-10 h-10 rounded-full object-cover mr-4"
                 />
                 <div className="text-left">
                   <h4 className="text-base font-medium text-black dark:text-white">
-                    {author?.name || "Unknown Author"}
+                    {post._embedded?.author?.[0]?.name || "Unknown Author"}
                   </h4>
                   <p className="text-sm text-body-color dark:text-body-color-dark">
                     {formatDate(post.date)}
@@ -510,7 +494,7 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
         </div>
       </section>
 
-      {/* Blog Single Start */}
+      {/* Blog Content Section */}
       <section className="pb-20 lg:pb-25 xl:pb-30">
         <div className="mx-auto max-w-c-1390 px-4 md:px-8 2xl:px-0">
           <div className="flex flex-col-reverse lg:flex-row gap-7.5 xl:gap-12.5">
@@ -537,8 +521,6 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
                         width="21"
                         height="21"
                         viewBox="0 0 21 21"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
                       >
                         <path d="M16.031 14.617L20.314 18.899L18.899 20.314L14.617 16.031C13.0237 17.3082 11.042 18.0029 9 18C4.032 18 0 13.968 0 9C0 4.032 4.032 0 9 0C13.968 0 18 4.032 18 9C18.0029 11.042 17.3082 13.0237 16.031 14.617ZM14.025 13.875C15.2941 12.5699 16.0029 10.8204 16 9C16 5.132 12.867 2 9 2C5.132 2 2 5.132 2 9C2 12.867 5.132 16 9 16C10.8204 16.0029 12.5699 15.2941 13.875 14.025L14.025 13.875Z" />
                       </svg>
@@ -574,7 +556,7 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
                               {posts.slice(0, 3).map((post) => (
                                 <Link
                                   key={post.id}
-                                  href={`/blogs/${post.id}`}
+                                  href={`/blogs/${post.slug}`}
                                   className="block bg-white dark:bg-blacksection border border-stroke dark:border-strokedark rounded-lg p-4 hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors duration-200"
                                 >
                                   <div className="flex items-start gap-4">
@@ -622,7 +604,6 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
               )}
 
               {/* Add custom scrollbar styles */}
-              {/* @ts-ignore */}
               <style jsx global>{`
                 .custom-scrollbar::-webkit-scrollbar {
                   width: 6px;
@@ -644,29 +625,23 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
                 <h4 className="font-semibold text-2xl text-black dark:text-white mb-7.5">
                   Categories
                 </h4>
-                <ul className="blog-categories">
-                  {sidebarCategories.length === 0 ? (
-                    <li className="text-body-color dark:text-body-color-dark">
-                      No categories found.
-                    </li>
-                  ) : (
-                    sidebarCategories.map((category) => (
-                      <li
-                        key={category.id}
-                        className="last:mb-0 mb-3 transition-all duration-300 hover:text-primary"
+                <ul className="space-y-3">
+                  {sidebarCategories.map((category) => (
+                    <li
+                      key={category.id}
+                      className="transition-all duration-300 hover:text-primary"
+                    >
+                      <Link
+                        href={`/blogs?category=${category.id}`}
+                        className="flex items-center justify-between"
                       >
-                        <Link
-                          href={`/blogs?category=${category.id}`}
-                          className="flex items-center justify-between"
-                        >
-                          {category.name}
-                          <span className="w-6 h-6 rounded-full bg-primary/10 dark:bg-primary/20 text-primary text-sm flex items-center justify-center">
-                            {category.count}
-                          </span>
-                        </Link>
-                      </li>
-                    ))
-                  )}
+                        {category.name}
+                        <span className="w-6 h-6 rounded-full bg-primary/10 dark:bg-primary/20 text-primary text-sm flex items-center justify-center">
+                          {category.count}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
                 </ul>
               </div>
 
@@ -675,202 +650,220 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
                 <h4 className="font-semibold text-2xl text-black dark:text-white mb-7.5">
                   Related Posts
                 </h4>
-                <div className="related-posts">
-                  {relatedPosts.length === 0 ? (
-                    <p className="text-body-color dark:text-body-color-dark">
-                      No related posts found.
-                    </p>
-                  ) : (
-                    relatedPosts.map((relatedPost) => (
-                      <div
-                        key={relatedPost.id}
-                        className="flex xl:flex-nowrap flex-wrap gap-4 2xl:gap-6 mb-7.5 group"
-                      >
-                        <div className="max-w-20 rounded-lg overflow-hidden">
-                          <img
-                            src={
-                              relatedPost._embedded?.["wp:featuredmedia"]?.[0]
-                                ?.source_url || "/newimages/blog-01.png"
-                            }
-                            alt={relatedPost.title.rendered}
-                            className="w-full transition-transform duration-300 group-hover:scale-105"
-                          />
-                        </div>
-                        <h5 className="flex-1 font-medium text-lg text-black dark:text-white group-hover:text-primary dark:group-hover:text-primary transition-all duration-300">
-                          <Link href={`/blogs/${relatedPost.id}`}>
+                <div className="space-y-7.5">
+                  {relatedPosts.map((relatedPost) => (
+                    <div key={relatedPost.id} className="flex gap-4 group">
+                      <div className="max-w-20 w-full h-20 rounded-md overflow-hidden">
+                        <img
+                          src={
+                            relatedPost._embedded?.["wp:featuredmedia"]?.[0]
+                              ?.source_url || "/newimages/blog-01.png"
+                          }
+                          alt={relatedPost.title.rendered}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <h5 className="font-medium text-black dark:text-white group-hover:text-primary transition-all duration-300 line-clamp-2">
+                          <Link href={`/blogs/${relatedPost.slug}`}>
                             {relatedPost.title.rendered}
                           </Link>
                         </h5>
+                        <p className="text-sm text-body-color dark:text-body-color-dark mt-2">
+                          {formatDate(relatedPost.date)}
+                        </p>
                       </div>
-                    ))
-                  )}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
 
             {/* Main Content */}
             <div className="lg:w-2/3">
-              <div className="blog-content">
-                {/* Featured Image */}
-                <div className="animate_top mb-10 w-full rounded-lg overflow-hidden">
-                  <img
-                    src={featuredImageUrl}
-                    alt={featuredImageAlt}
-                    className="w-full h-auto transition-transform duration-300 hover:scale-105"
-                  />
+              {/* Featured Image */}
+              <div className="animate_top mb-10 rounded-lg overflow-hidden">
+                <img
+                  src={
+                    post._embedded?.["wp:featuredmedia"]?.[0]?.source_url ||
+                    "/newimages/blog-01.png"
+                  }
+                  alt={
+                    post._embedded?.["wp:featuredmedia"]?.[0]?.alt_text ||
+                    post.title.rendered
+                  }
+                  className="w-full h-auto"
+                />
+              </div>
+
+              {/* Content */}
+              <div className="animate_top blog-content mb-10">
+                <div
+                  className="prose prose-lg dark:prose-invert max-w-none"
+                  dangerouslySetInnerHTML={{ __html: post.content.rendered }}
+                />
+              </div>
+
+              {/* Social Share */}
+              <div className="flex flex-wrap gap-4 mt-12 pt-8 border-t border-stroke dark:border-strokedark">
+                <span className="text-black dark:text-white font-medium">
+                  Share this post:
+                </span>
+                <div className="flex items-center gap-3">
+                  <a
+                    href={`https://twitter.com/share?url=${encodeURIComponent(
+                      window.location.href
+                    )}&text=${encodeURIComponent(post.title.rendered)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-body-color dark:text-body-color-dark hover:text-primary dark:hover:text-primary"
+                  >
+                    Twitter
+                  </a>
+                  <a
+                    href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+                      window.location.href
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-body-color dark:text-body-color-dark hover:text-primary dark:hover:text-primary"
+                  >
+                    Facebook
+                  </a>
+                  <a
+                    href={`https://www.linkedin.com/shareArticle?url=${encodeURIComponent(
+                      window.location.href
+                    )}&title=${encodeURIComponent(post.title.rendered)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-body-color dark:text-body-color-dark hover:text-primary dark:hover:text-primary"
+                  >
+                    LinkedIn
+                  </a>
+                </div>
+              </div>
+
+              {/* Comments Section */}
+              <div className="animate_top mt-15 mb-15 lg:mb-20">
+                <div className="mb-8 border-b border-stroke dark:border-strokedark pb-8">
+                  <h2 className="text-3xl font-semibold text-black dark:text-white mb-2">
+                    Comments ({comments.length})
+                  </h2>
                 </div>
 
-                {/* Content */}
-                <div className="animate_top blog-content mb-10">
-                  <div
-                    className="prose prose-lg dark:prose-invert max-w-none blog-post-content"
-                    dangerouslySetInnerHTML={{ __html: post.content.rendered }}
-                  />
+                {/* Comments List */}
+                <div className="comments-list space-y-10">
+                  {comments.length > 0 ? (
+                    comments.map((comment) => (
+                      <CommentItem
+                        key={comment.id}
+                        comment={comment}
+                        formatDate={formatDate}
+                      />
+                    ))
+                  ) : (
+                    <p className="text-body-color dark:text-body-color-dark">
+                      No comments yet. Be the first to comment!
+                    </p>
+                  )}
                 </div>
 
-                {/* Social Share */}
-                <div className="flex flex-wrap gap-4 mt-12 pt-8 border-t border-stroke dark:border-strokedark">
-                  <span className="text-black dark:text-white font-medium">
-                    Share this post:
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <a
-                      href={`https://twitter.com/share?url=${encodeURIComponent(
-                        window.location.href
-                      )}&text=${encodeURIComponent(post.title.rendered)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-body-color dark:text-body-color-dark hover:text-primary dark:hover:text-primary"
-                    >
-                      Twitter
-                    </a>
-                    <a
-                      href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
-                        window.location.href
-                      )}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-body-color dark:text-body-color-dark hover:text-primary dark:hover:text-primary"
-                    >
-                      Facebook
-                    </a>
-                    <a
-                      href={`https://www.linkedin.com/shareArticle?url=${encodeURIComponent(
-                        window.location.href
-                      )}&title=${encodeURIComponent(post.title.rendered)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-body-color dark:text-body-color-dark hover:text-primary dark:hover:text-primary"
-                    >
-                      LinkedIn
-                    </a>
-                  </div>
-                </div>
-
-                {/* Comments Section */}
-                <div className="animate_top mt-15 mb-15 lg:mb-20">
-                  <div className="mb-8 border-b border-stroke dark:border-strokedark pb-8">
-                    <h2 className="text-3xl font-semibold text-black dark:text-white mb-2">
-                      Comments ({comments.length})
-                    </h2>
-                  </div>
-
-                  <div className="comments-list">
-                    {comments.length > 0 ? (
-                      <div className="space-y-10">
-                        {comments.map((comment) => (
-                          <CommentItem
-                            key={comment.id}
-                            comment={comment}
-                            formatDate={formatDate}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-body-color dark:text-body-color-dark">
-                        No comments yet. Be the first to comment!
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Comment Form */}
-                  <div className="mt-12">
-                    <h4 className="font-semibold text-xl text-black dark:text-white mb-6">
-                      Leave a Comment
-                    </h4>
-                    <form onSubmit={handleCommentSubmit} className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm text-body-color dark:text-body-color-dark mb-2">
-                            Name *
-                          </label>
-                          <input
-                            type="text"
-                            name="name"
-                            value={commentForm.name}
-                            onChange={handleCommentChange}
-                            required
-                            className="w-full dark:bg-black border border-stroke dark:border-strokedark shadow-solid-12 dark:shadow-none rounded-lg focus:outline-none focus:border-primary dark:focus:border-primary py-3 px-6"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm text-body-color dark:text-body-color-dark mb-2">
-                            Email *
-                          </label>
-                          <input
-                            type="email"
-                            name="email"
-                            value={commentForm.email}
-                            onChange={handleCommentChange}
-                            required
-                            className="w-full dark:bg-black border border-stroke dark:border-strokedark shadow-solid-12 dark:shadow-none rounded-lg focus:outline-none focus:border-primary dark:focus:border-primary py-3 px-6"
-                          />
-                        </div>
+                {/* Comment Form */}
+                <div className="mt-12">
+                  <h4 className="font-semibold text-xl text-black dark:text-white mb-6">
+                    Leave a Comment
+                  </h4>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      // Handle comment submission
+                    }}
+                    className="space-y-4"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm text-body-color dark:text-body-color-dark mb-2">
+                          Name *
+                        </label>
+                        <input
+                          type="text"
+                          name="name"
+                          value={commentForm.name}
+                          onChange={(e) =>
+                            setCommentForm((prev) => ({
+                              ...prev,
+                              name: e.target.value,
+                            }))
+                          }
+                          required
+                          className="w-full dark:bg-black border border-stroke dark:border-strokedark shadow-solid-12 dark:shadow-none rounded-lg focus:outline-none focus:border-primary dark:focus:border-primary py-3 px-6"
+                        />
                       </div>
                       <div>
                         <label className="block text-sm text-body-color dark:text-body-color-dark mb-2">
-                          Comment *
+                          Email *
                         </label>
-                        <textarea
-                          name="comment"
-                          value={commentForm.comment}
-                          onChange={handleCommentChange}
+                        <input
+                          type="email"
+                          name="email"
+                          value={commentForm.email}
+                          onChange={(e) =>
+                            setCommentForm((prev) => ({
+                              ...prev,
+                              email: e.target.value,
+                            }))
+                          }
                           required
-                          rows={6}
-                          className="w-full dark:bg-black border border-stroke dark:border-strokedark shadow-solid-12 dark:shadow-none rounded-lg focus:outline-none focus:border-primary dark:focus:border-primary py-3 px-6 resize-none"
-                        ></textarea>
+                          className="w-full dark:bg-black border border-stroke dark:border-strokedark shadow-solid-12 dark:shadow-none rounded-lg focus:outline-none focus:border-primary dark:focus:border-primary py-3 px-6"
+                        />
                       </div>
-                      {commentStatus.message && (
-                        <div
-                          className={`p-4 rounded-lg ${
-                            commentStatus.type === "success"
-                              ? "bg-green-50 text-green-600 dark:bg-green-900/10 dark:text-green-400"
-                              : "bg-red-50 text-red-600 dark:bg-red-900/10 dark:text-red-400"
-                          }`}
-                        >
-                          {commentStatus.message}
-                        </div>
-                      )}
-                      <div>
-                        <button
-                          type="submit"
-                          className="inline-flex items-center gap-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg px-6 py-3 font-medium duration-300"
-                        >
-                          Post Comment
-                          <svg
-                            className="fill-white"
-                            width="14"
-                            height="14"
-                            viewBox="0 0 14 14"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path d="M10.4767 6.16664L6.00668 1.69664L7.18501 0.518311L13.6667 6.99998L7.18501 13.4816L6.00668 12.3033L10.4767 7.83331H0.333344V6.16664H10.4767Z" />
-                          </svg>
-                        </button>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-body-color dark:text-body-color-dark mb-2">
+                        Comment *
+                      </label>
+                      <textarea
+                        name="comment"
+                        value={commentForm.comment}
+                        onChange={(e) =>
+                          setCommentForm((prev) => ({
+                            ...prev,
+                            comment: e.target.value,
+                          }))
+                        }
+                        required
+                        rows={6}
+                        className="w-full dark:bg-black border border-stroke dark:border-strokedark shadow-solid-12 dark:shadow-none rounded-lg focus:outline-none focus:border-primary dark:focus:border-primary py-3 px-6 resize-none"
+                      ></textarea>
+                    </div>
+                    {commentStatus.message && (
+                      <div
+                        className={`p-4 rounded-lg ${
+                          commentStatus.type === "success"
+                            ? "bg-green-50 text-green-600 dark:bg-green-900/10 dark:text-green-400"
+                            : "bg-red-50 text-red-600 dark:bg-red-900/10 dark:text-red-400"
+                        }`}
+                      >
+                        {commentStatus.message}
                       </div>
-                    </form>
-                  </div>
+                    )}
+                    <div>
+                      <button
+                        type="submit"
+                        className="inline-flex items-center gap-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg px-6 py-3 font-medium duration-300"
+                      >
+                        Post Comment
+                        <svg
+                          className="fill-white"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 14 14"
+                        >
+                          <path d="M10.4767 6.16664L6.00668 1.69664L7.18501 0.518311L13.6667 6.99998L7.18501 13.4816L6.00668 12.3033L10.4767 7.83331H0.333344V6.16664H10.4767Z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </form>
                 </div>
               </div>
             </div>
@@ -878,59 +871,6 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
         </div>
       </section>
     </main>
-  );
-};
-
-// Recursive comment component
-interface CommentItemProps {
-  comment: Comment;
-  formatDate: (date: string) => string;
-}
-
-const CommentItem = ({ comment, formatDate }: CommentItemProps) => {
-  const hasReplies = comment.children && comment.children.length > 0;
-
-  return (
-    <div
-      className={`comment-item ${hasReplies ? "mb-8" : ""}`}
-      data-comment-id={comment.id}
-    >
-      <div className="flex gap-4 sm:gap-6">
-        <div className="shrink-0">
-          <img
-            src={comment.author_avatar_urls["96"] || "/newimages/user.png"}
-            alt={comment.author_name}
-            className="w-16 h-16 rounded-full"
-          />
-        </div>
-        <div className="flex-1">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <h5 className="font-medium text-black dark:text-white">
-              {comment.author_name}
-            </h5>
-            <span className="text-sm text-body-color dark:text-body-color-dark">
-              {formatDate(comment.date)}
-            </span>
-          </div>
-          <div
-            className="text-body-color dark:text-body-color-dark mb-4"
-            dangerouslySetInnerHTML={{ __html: comment.content.rendered }}
-          />
-        </div>
-      </div>
-
-      {hasReplies && (
-        <div className="mt-8 ml-8 sm:ml-16 space-y-8">
-          {comment.children?.map((reply) => (
-            <CommentItem
-              key={reply.id}
-              comment={reply}
-              formatDate={formatDate}
-            />
-          ))}
-        </div>
-      )}
-    </div>
   );
 };
 

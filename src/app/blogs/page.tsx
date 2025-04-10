@@ -21,13 +21,21 @@ interface Media {
   source_url: string;
 }
 
+interface Author {
+  name: string;
+}
+
 interface Post {
   id: number;
   title: { rendered: string };
-  excerpt: { rendered: string };
+  content: { rendered: string };
+  excerpt: { rendered: string; protected?: boolean };
+  date: string;
+  slug: string;
   _embedded?: {
     "wp:featuredmedia"?: Media[];
     "wp:term"?: Category[][];
+    author?: Author[];
   };
 }
 
@@ -350,7 +358,7 @@ const BlogsPage = () => {
                     className="animate_top bg-white dark:bg-blacksection rounded-lg shadow-solid-8 p-4 pb-9 transition-all duration-300 hover:shadow-solid-12"
                   >
                     <Link
-                      href={`/blogs/${post.id}`}
+                      href={`/blogs/${post.slug}`}
                       className="block overflow-hidden rounded-lg"
                     >
                       <img
@@ -364,7 +372,7 @@ const BlogsPage = () => {
                     <div className="px-4">
                       {formatCategories(categories)}
                       <h4 className="font-medium text-lg xl:text-itemtitle2 text-black hover:text-primary dark:text-white mt-3.5 mb-3.5 line-clamp-2">
-                        <Link href={`/blogs/${post.id}`}>{title}</Link>
+                        <Link href={`/blogs/${post.slug}`}>{title}</Link>
                       </h4>
                       <p className="text-body-color dark:text-body-color-dark line-clamp-2">
                         {excerpt}...

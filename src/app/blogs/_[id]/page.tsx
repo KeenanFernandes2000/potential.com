@@ -622,7 +622,6 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
               )}
 
               {/* Add custom scrollbar styles */}
-              {/* @ts-ignore */}
               <style jsx global>{`
                 .custom-scrollbar::-webkit-scrollbar {
                   width: 6px;

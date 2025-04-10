@@ -16,68 +16,40 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  title: {
-    default: "Potential.com - AI Solutions for Business",
-    template: "%s | Potential.com",
-  },
+  title: "Potential.com - AI Agents for Business Growth",
   description:
-    "Transform your business with our specialized AI agents for Leadership, Sales, and Operations. Get started in minutes with customized AI solutions.",
-  keywords: [
-    "AI Solutions",
-    "Business AI",
-    "AI Agents",
-    "Digital Transformation",
-    "Business Automation",
-  ],
-  authors: [{ name: "Potential.com" }],
-  creator: "Potential.com",
-  publisher: "Potential.com",
-  formatDetection: {
-    email: false,
-    address: false,
-    telephone: false,
-  },
-  icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon-16x16.png",
-    apple: "/apple-touch-icon.png",
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-video-preview": -1,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-    },
-  },
+    "Expand your human team with specialized AI agents. Deploy powerful AI team members who seamlessly integrate with your existing systems—backed by dedicated support to ensure instant ROI.",
   openGraph: {
-    type: "website",
-    locale: "en_US",
-    url: "https://potential.com",
-    siteName: "Potential.com",
-    title: "Potential.com - AI Solutions for Business",
+    title: "Potential.com - AI Agents for Business Growth",
     description:
-      "Transform your business with our specialized AI agents for Leadership, Sales, and Operations. Get started in minutes with customized AI solutions.",
+      "Expand your human team with specialized AI agents. Deploy powerful AI team members who seamlessly integrate with your existing systems.",
+    type: "website",
     images: [
       {
-        url: "https://potential.com/og-image.jpg",
+        url: "/newimages/Hero.png",
         width: 1200,
         height: 630,
-        alt: "Potential.com - AI Solutions",
+        alt: "Potential.com AI Agents",
       },
     ],
+    siteName: "Potential.com",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Potential.com - AI Solutions for Business",
+    title: "Potential.com - AI Agents for Business Growth",
     description:
-      "Transform your business with our specialized AI agents for Leadership, Sales, and Operations. Get started in minutes with customized AI solutions.",
-    images: ["https://potential.com/twitter-image.jpg"],
-    creator: "@potential_com",
-    site: "@potential_com",
+      "Expand your human team with specialized AI agents. Deploy powerful AI team members who seamlessly integrate with your existing systems.",
+    images: ["/newimages/Hero.png"],
+  },
+  keywords: [
+    "AI Agents",
+    "Business Growth",
+    "AI Solutions",
+    "Enterprise AI",
+    "Digital Transformation",
+  ],
+  alternates: {
+    canonical: "https://potential.com",
   },
 };
 
