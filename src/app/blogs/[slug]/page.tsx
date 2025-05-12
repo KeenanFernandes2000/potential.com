@@ -216,18 +216,20 @@ const BlogPostPage = ({ params }: BlogPostPageProps) => {
         setIsLoading(false);
         return;
       }
-
+      const decodedSlug = decodeURIComponent(slug);
       // If not in cache, fetch from API using slug
       const response = await fetchWithCors(
-        `${WP_SITE_URL}/wp/v2/posts?slug=${slug}&_embed`
+        `${WP_SITE_URL}/wp/v2/posts?_embed&slug=${decodedSlug}`
       );
 
       const posts = await response.json();
 
-      if (!posts.length) {
-        router.push("/404"); // Redirect to 404 if post not found
-        return;
-      }
+      // if (!posts.length) {
+      //   router.push("/404"); // Redirect to 404 if post not found
+      //   return;
+      // }
+
+      console.log("posts", posts);
 
       const data = posts[0]; // Get the first post since slug is unique
 

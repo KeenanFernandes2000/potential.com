@@ -23,9 +23,8 @@ export async function generateMetadata(
 
   // Fetch the post data
   try {
+    console.log("params.slug", params.slug);
     const url = `${WP_SITE_URL}/wp/v2/posts?slug=${params.slug}&_embed`;
-    console.log("Fetching from URL:", url); // Debug log
-
     const response = await fetch(url, {
       next: { revalidate: 60 },
       headers: {

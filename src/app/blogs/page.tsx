@@ -126,7 +126,7 @@ const BlogsPage = () => {
       }
 
       // Build API URL with parameters - use WP_SITE_URL from the constant
-      let apiUrl = `${WP_SITE_URL}/wp/v2/posts?_embed&per_page=${postsPerPage}&page=${currentPage}`;
+      let apiUrl = `${WP_SITE_URL}/wp/v2/posts?_embed&per_page=${postsPerPage}&page=${currentPage}&lang=ar`;
 
       if (categoryParam) {
         apiUrl += `&categories=${categoryParam}`;

@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
  * It forwards requests to the WordPress API and returns the response
  */
 export async function GET(request: Request) {
+  console.log("request", request.url);
   // Get the URL from the query parameter
   const { searchParams } = new URL(request.url);
   const targetUrl = searchParams.get("url");
